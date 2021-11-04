@@ -159,9 +159,9 @@ scoring = {"AUC": "roc_auc", "Accuracy": make_scorer(accuracy_score)}
 grid_search = GridSearchCV(svm_classifier,
                     parameters,
                     n_jobs=4,
-                    scoring=scoring,
+                    scoring='roc_auc',
                     refit="AUC",
-                    return_train_score=True,
+                    return_train_score=True,    
                     cv=cross_validation)
 
 grid_search.fit(X_train, y_train)
@@ -176,5 +176,6 @@ dataframetemp = pd.DataFrame(all_ids_comp, columns=['Id'])
 dataframeids = pd.concat([dataframetemp, predictions_competition], axis=1)
 results = dataframeids.drop_duplicates(subset=['Id'], keep='first')
 
+print("auc: {}".format(grid_search.best_score_))
 
 results.to_csv('out.csv', index = False)
