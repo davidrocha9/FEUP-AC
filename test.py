@@ -29,6 +29,7 @@ from sklearn.ensemble import AdaBoostClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.utils import resample
 
 from imblearn.over_sampling import SMOTE
 import xgboost as xgb
@@ -36,17 +37,14 @@ import xgboost as xgb
 # Reading the data
 train = pd.read_csv('train.csv', na_values=['NA'], low_memory=False)
 test = pd.read_csv('test.csv', na_values=['NA'], low_memory=False)
-good = pd.read_csv('good.csv', na_values=['NA'], low_memory=False)
-mygood = pd.read_csv('mygood.csv', na_values=['NA'], low_memory=False)
 
 inputs = train.drop(columns=['status', 'loan_id'])
 labels = train['status']
 
 #Split in train and test - Should also try split manually by date
-x_train, x_test, y_train, y_test = train_test_split(inputs, labels, test_size=0.3, random_state=1)
-
-oversample = SMOTE()
-x_train, y_train = oversample.fit_resample(x_train, y_train)
+# x_train, x_test, y_train, y_test = train_test_split(inputs, labels, test_size=0.25, random_state=1)
+# oversample = SMOTE()
+# x_train, y_train = oversample.fit_resample(x_train, y_train)
 
 # Use for KNN
 # scaler = preprocessing.StandardScaler().fit(x_train)
@@ -59,7 +57,7 @@ x_train, y_train = oversample.fit_resample(x_train, y_train)
 # classifier = RandomForestClassifier(300)
 # classifier = xgb.XGBClassifier()
 # classifier = MLPClassifier(alpha=1, max_iter=1000)
-classifier = AdaBoostClassifier()
+# classifier = AdaBoostClassifier()
 # classifier = GaussianNB()
 # classifier = VotingClassifier(
 #     estimators=[('dt', tree.DecisionTreeClassifier()), ('svm', svm.LinearSVC()), ('xgb', xgb.XGBClassifier())],
@@ -71,9 +69,9 @@ classifier = AdaBoostClassifier()
 # Feature Selection
 # classifier = RFECV(classifier, scoring='roc_auc')
 
-classifier.fit(x_train, y_train)
-dt_grid_search = GridSearchCV(classifier, scoring="roc_auc", cv=5, param_grid={})
-dt_grid_search.fit(x_train, y_train)
+# classifier.fit(x_train, y_train)
+# dt_grid_search = GridSearchCV(classifier, scoring="roc_auc", cv=5, param_grid={})
+# dt_grid_search.fit(x_train, y_train)
 
 # print("Selected Features: %s" % (classifier.ranking_))
 
@@ -94,23 +92,71 @@ dt_grid_search.fit(x_train, y_train)
 # plt.show()
 
 # Print Metrics    
-print("Area under ROC curve: " + str(roc_auc_score(y_test, classifier.predict(x_test))))
-print("Accuracy: " + str(accuracy_score(y_test, classifier.predict(x_test))))
-print("Precision: " + str(precision_score(y_test, classifier.predict(x_test))))
-print("Recall: " + str(recall_score(y_test, classifier.predict(x_test))))
-print("f1: " + str(f1_score(y_test, classifier.predict(x_test))))
+# print("Area under ROC curve: " + str(roc_auc_score(y_test, classifier.predict(x_test))))
+# print("Accuracy: " + str(accuracy_score(y_test, classifier.predict(x_test))))
+# print("Precision: " + str(precision_score(y_test, classifier.predict(x_test))))
+# print("Recall: " + str(recall_score(y_test, classifier.predict(x_test))))
+# print("f1: " + str(f1_score(y_test, classifier.predict(x_test))))
 
-test_inputs = test.drop(columns=['status', 'loan_id'])
-test_ids = test['loan_id']
+# test_inputs = test.drop(columns=['status', 'loan_id'])
+# test_ids = test['loan_id']
 
-predictions_competition = dt_grid_search.predict_proba(test_inputs)
-predictions_competition = pd.DataFrame(predictions_competition, columns=['col2', 'Predicted'])
-predictions_competition.drop('col2', axis=1, inplace=True)
-test_ids = test_ids.to_frame()
-results = pd.concat([test_ids, predictions_competition], axis=1)
-results = results.rename(columns={"loan_id":"Id"})
-# mygood = mygood.rename(columns={"Predicted":"Predicted2"})
-# results = results.merge(mygood, on="Id", how="inner")
-# results = results.merge(good, on="Id", how="inner")
+# predictions_competition = dt_grid_search.predict_proba(test_inputs)
+# pred_loan = predictions_competition[::,1]
+# predictions_competition = pd.DataFrame(predictions_competition, columns=['col2', 'Predicted'])
+# predictions_competition.drop('col2', axis=1, inplace=True)
+# test_ids = test_ids.to_frame()
+# results = pd.concat([test_ids, predictions_competition], axis=1)
+# results = results.rename(columns={"loan_id":"Id"})
 
-results.to_csv('out.csv', index = False)
+# results.to_csv('out.csv', index = False)
+
+# loans_merged = train
+
+# train_split, test_split = train_test_split(loans_merged, test_size=0.25, stratify=loans_merged['status'])
+
+# X_train = train_split.iloc[:, :-1].values
+# y_train = train_split.iloc[:, -1].values
+# X_test = test_split.iloc[:, :-1].values
+# y_test = test_split.iloc[:, -1].values
+
+
+# dt_classifier = AdaBoostClassifier(random_state=1)
+
+# dt_grid_search = GridSearchCV(dt_classifier,
+#                             param_grid={},
+#                             scoring='roc_auc',
+#                             cv=5)
+
+# df_majority = train_split[train_split.status == 1]
+# df_minority = train_split[train_split.status == -1]
+
+# df_minority_upsampled = resample(df_minority, 
+#                                   replace=True,     # sample with replacement
+#                                   n_samples=211    # to match majority class
+#                                   )
+
+# loan_train_balanced = pd.concat([df_majority, df_minority_upsampled])
+
+# all_ids_test = loans_test_merged['loan_id'].values
+
+# dt_grid_search.fit(X_train, y_train)
+# best_score = dt_grid_search.best_score_
+# print("Best Score: " + str(best_score))
+
+# predictions_train = dt_grid_search.predict(X_train)
+# predictions_test = dt_grid_search.predict(X_test)
+
+
+# predictions_competition = dt_grid_search.predict_proba(loans_test_merged)
+
+# print("Area under ROC curve: " + str(roc_auc_score(y_test, dt_grid_search.predict(X_test))))
+
+# predictions_competition = pd.DataFrame(predictions_competition, columns=['col2','Predicted'])
+# predictions_competition.drop('col2', axis=1, inplace=True)
+# dataframetemp = pd.DataFrame(all_ids_test, columns=['Id'])
+# dataframeids = pd.concat([dataframetemp, predictions_competition], axis=1)
+# results = dataframeids.drop_duplicates(subset=['Id'], keep='first')
+
+
+# results.to_csv('out.csv', index = False)

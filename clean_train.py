@@ -10,9 +10,16 @@ district_data = pd.read_csv('data/district.csv', na_values=['NA'], sep=';', low_
 card_train_data = pd.read_csv('data/card_train.csv', na_values=['NA'], sep=';', low_memory=False)
 loan_train_data = pd.read_csv('data/loan_train.csv', na_values=['NA'], sep=';', low_memory=False)
 trans_train_data = pd.read_csv('data/trans_train.csv', na_values=['NA'], sep=';', low_memory=False)
-good = pd.read_csv('good.csv', na_values=['NA'], sep=',', low_memory=False)
+    
 
 # out = pd.read_csv('train.csv', na_values=['NA'], sep=',', low_memory=False)
+
+from datetime import datetime
+
+def days_between(d1, d2):
+    d1 = datetime.strptime(d1, "%Y-%m-%d")
+    d2 = datetime.strptime(d2, "%Y-%m-%d")
+    return abs((d2 - d1).days)
 
 # Cleaning the data
 
@@ -82,58 +89,23 @@ client_data = client_data.merge(disp_data, on='client_id', how='inner')
 train_data = train_data.drop(columns=["district_id"])
 train_data = train_data.merge(client_data, on=['account_id'], how='inner')
 train_data = train_data.merge(district_data, left_on='district_id', right_on="code ", how='inner')
-train_data = train_data.merge(trans_train_data, on='account_id', how="left")
-
-train_data = train_data[train_data.std(axis=1) > 0]
-
-train_data['nr_movements'] = 0
-train_data['min_trans_amount'] = 0
-train_data['max_trans_amount'] = 0
-train_data['avg_trans_amount'] = 0
-train_data['range_amount'] = 0
-train_data['min_trans_balance'] = 0
-train_data['max_trans_balance'] = 0
-train_data['avg_trans_balance'] = 0
-train_data['range_balance'] = 0
-train_data['amount_month'] = 0
-train_data['withdrawals'] = 0
-train_data['credits'] = 0
-train_data['members'] = 0
-train_data['owner_age'] = 0
-train_data['trans_date_diff'] = 0
-train_data['able_to_pay'] = False
-train_data['balance_last'] = 0
-train_data['amount_last'] = 0
-
-from datetime import datetime
-
-def days_between(d1, d2):
-    d1 = datetime.strptime(d1, "%Y-%m-%d")
-    d2 = datetime.strptime(d2, "%Y-%m-%d")
-    return abs((d2 - d1).days)
-
-for index, row in train_data.iterrows():
-    trans_rows = train_data[train_data['loan_id'] == train_data.loc[index,'loan_id']]
-    train_data.loc[index, 'nr_movements'] = len(trans_rows)
-    train_data.loc[index, 'min_trans_amount'] = min(trans_rows['trans_amount'])
-    train_data.loc[index, 'max_trans_amount'] = max(trans_rows['trans_amount'])
-    train_data.loc[index, 'avg_trans_amount'] = trans_rows['trans_amount'].mean()
-    train_data.loc[index, 'range_amount'] = train_data.loc[index, 'max_trans_amount'] - train_data.loc[index, 'min_trans_amount']
     
-    train_data.loc[index, 'min_trans_balance'] = min(trans_rows['balance'])
-    train_data.loc[index, 'max_trans_balance'] = max(trans_rows['balance'])
-    train_data.loc[index, 'avg_trans_balance'] = trans_rows['balance'].mean()
-    train_data.loc[index, 'range_balance'] = train_data.loc[index, 'max_trans_balance'] - train_data.loc[index, 'min_trans_balance']
-    train_data.loc[index, 'withdrawals'] = len(trans_rows[trans_rows['trans_type'] == 'withdrawal']) + len(trans_rows[trans_rows['trans_type'] == 'withdrawal in cash'])
-    train_data.loc[index, 'credits'] = len(trans_rows[trans_rows['trans_type'] == 'credit'])
-    train_data.loc[index, 'members'] = len(trans_rows['type'].unique())
-    
-    max_date = max(trans_rows['trans_date'])
-    min_date = min(trans_rows['trans_date'])
+account_ids = list(train_data['account_id'].unique())
+trans_train_data = trans_train_data[trans_train_data['account_id'].isin(account_ids)]
 
-    if train_data.loc[index, 'trans_date'] == min_date:
-        train_data.loc[index, 'balance_last'] = train_data.loc[index, 'balance']
-        train_data.loc[index, 'amount_last'] = train_data.loc[index, 'trans_amount']
+for index, row in trans_train_data.iterrows():
+    rows = trans_train_data[trans_train_data['account_id'] == trans_train_data.loc[index, 'account_id']]
+    trans_train_data.loc[index, 'withdrawals'] = len(rows[rows['trans_type'] == 'withdrawal']) + len(rows[rows['trans_type'] == 'withdrawal in cash'])
+    trans_train_data.loc[index, 'credits'] = len(rows[rows['trans_type'] == 'credit'])
+    
+    trans_train_data.loc[index, 'nr_movements'] = len(rows)
+    sum_amount = sum(rows['trans_amount'])
+    max_date = max(rows['trans_date'])
+    min_date = min(rows['trans_date'])
+    
+    if trans_train_data.loc[index, 'trans_date'] == max_date:
+        trans_train_data.loc[index, 'balance_last'] = trans_train_data.loc[index, 'balance']
+        trans_train_data.loc[index, 'amount_last'] = trans_train_data.loc[index, 'trans_amount']
     
     max_year = max_date // 10000
     if max_year < 21:
@@ -151,8 +123,32 @@ for index, row in train_data.iterrows():
     min_month = (min_date % 10000) // 100
     min_day = min_date % 100
     
-    train_data.loc[index, 'trans_date_diff'] = days_between(str(max_year) + "-" + str(max_month) + "-" + str(max_day), str(min_year) + "-" + str(min_month) + "-" + str(min_day))
-    train_data.loc[index, 'amount_month'] = sum(trans_rows['trans_amount']) / ((train_data.loc[index, 'trans_date_diff']) / 30.0)
+    trans_train_data.loc[index, 'trans_date_diff'] = days_between(str(max_year) + "-" + str(max_month) + "-" + str(max_day), str(min_year) + "-" + str(min_month) + "-" + str(min_day))
+    trans_train_data.loc[index, 'amount_month'] = sum_amount / (trans_train_data.loc[index, 'trans_date_diff'] / 30.0)
+    
+    trans_train_data.loc[index, 'min_trans_amount'] = min(rows['trans_amount'])
+    trans_train_data.loc[index, 'max_trans_amount'] = max(rows['trans_amount'])
+    trans_train_data.loc[index, 'avg_trans_amount'] = rows['trans_amount'].mean()
+    trans_train_data.loc[index, 'range_amount'] = trans_train_data.loc[index, 'max_trans_amount'] - trans_train_data.loc[index, 'min_trans_amount']
+    
+    trans_train_data.loc[index, 'min_trans_balance'] = min(rows['balance'])
+    trans_train_data.loc[index, 'max_trans_balance'] = max(rows['balance'])
+    trans_train_data.loc[index, 'avg_trans_balance'] = rows['balance'].mean()
+    trans_train_data.loc[index, 'range_balance'] = trans_train_data.loc[index, 'max_trans_balance'] - trans_train_data.loc[index, 'min_trans_balance']    
+    
+trans_train_data = trans_train_data.drop(columns=['trans_type', 'operation', "k_symbol", "account", "bank"])
+trans_train_data = trans_train_data.dropna()
+trans_train_data = trans_train_data.drop_duplicates(subset=['account_id'], keep='first')
+train_data = train_data.merge(trans_train_data, on='account_id', how="left")
+train_data = train_data[train_data.std(axis=1) > 0]
+
+train_data['members'] = 0
+train_data['owner_age'] = 0
+train_data['able_to_pay'] = False
+
+for index, row in train_data.iterrows():
+    trans_rows = train_data[train_data['loan_id'] == train_data.loc[index,'loan_id']]
+    train_data.loc[index, 'members'] = len(trans_rows['type'].unique())
     
     if train_data.loc[index, 'amount_month'] > train_data.loc[index, 'payments']:
         train_data.loc[index, 'able_to_pay'] = True
@@ -161,14 +157,13 @@ for index, row in train_data.iterrows():
 train_data = train_data.sort_values('loan_id')
 
 train_data = train_data.drop(columns=["account_id", "client_id", "birth_number", "district_id", "disp_id",
-                                      "trans_id", "trans_date", "k_symbol", "account", "bank"])
+                                      "trans_id", "trans_date"])
 
 train_data = train_data[train_data['type'] == 'OWNER']
 
 train_data = train_data.drop_duplicates(subset=['loan_id'], keep='first')
 
-train_data = train_data.drop(columns=['trans_type', 'operation',
-                          'name ', 'region', 'type'])
+train_data = train_data.drop(columns=['name ', 'region', 'type'])
 
 train_data = pd.get_dummies(train_data, columns=['frequency'], dtype=bool)
 train_data = pd.get_dummies(train_data, columns=['gender'], dtype=bool)

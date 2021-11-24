@@ -10,15 +10,22 @@ district_data = pd.read_csv('data/district.csv', na_values=['NA'], sep=';', low_
 card_test_data = pd.read_csv('data/card_test.csv', na_values=['NA'], sep=';', low_memory=False)
 loan_test_data = pd.read_csv('data/loan_test.csv', na_values=['NA'], sep=';', low_memory=False)
 trans_test_data = pd.read_csv('data/trans_test.csv', na_values=['NA'], sep=';', low_memory=False)
-good = pd.read_csv('good.csv', na_values=['NA'], sep=',', low_memory=False)
+    
 
+# out = pd.read_csv('train.csv', na_values=['NA'], sep=',', low_memory=False)
+
+from datetime import datetime
+
+def days_between(d1, d2):
+    d1 = datetime.strptime(d1, "%Y-%m-%d")
+    d2 = datetime.strptime(d2, "%Y-%m-%d")
+    return abs((d2 - d1).days)
 
 # Cleaning the data
 
 loan_test_data = loan_test_data.rename(columns={"amount":"loan_amount"})
 client_data = client_data.rename(columns={"type":"client_type"})
 trans_test_data = trans_test_data.rename(columns={"type":"trans_type", "amount":"trans_amount", "date":"trans_date"})
-
 
 account_data["creation_year"] = 0 
 account_data["creation_month"] = 0 
@@ -82,59 +89,23 @@ client_data = client_data.merge(disp_data, on='client_id', how='inner')
 test_data = test_data.drop(columns=["district_id"])
 test_data = test_data.merge(client_data, on=['account_id'], how='inner')
 test_data = test_data.merge(district_data, left_on='district_id', right_on="code ", how='inner')
-test_data = test_data.merge(trans_test_data, on='account_id', how="inner")
-
-test_data = test_data[test_data.std(axis=1) > 0]
-
-test_data['nr_movements'] = 0
-test_data['min_trans_amount'] = 0
-test_data['max_trans_amount'] = 0
-test_data['avg_trans_amount'] = 0
-test_data['range_amount'] = 0
-test_data['min_trans_balance'] = 0
-test_data['max_trans_balance'] = 0
-test_data['avg_trans_balance'] = 0
-test_data['range_balance'] = 0
-test_data['amount_month'] = 0
-test_data['withdrawals'] = 0
-test_data['credits'] = 0
-test_data['members'] = 0
-test_data['owner_age'] = 0
-test_data['trans_date_diff'] = 0
-test_data['able_to_pay'] = False
-test_data['balance_last'] = 0
-test_data['amount_last'] = 0
-
-
-from datetime import datetime
-
-def days_between(d1, d2):
-    d1 = datetime.strptime(d1, "%Y-%m-%d")
-    d2 = datetime.strptime(d2, "%Y-%m-%d")
-    return abs((d2 - d1).days)
-
-for index, row in test_data.iterrows():
-    trans_rows = test_data[test_data['loan_id'] == test_data.loc[index,'loan_id']]
-    test_data.loc[index, 'nr_movements'] = len(trans_rows)
-    test_data.loc[index, 'min_trans_amount'] = min(trans_rows['trans_amount'])
-    test_data.loc[index, 'max_trans_amount'] = max(trans_rows['trans_amount'])
-    test_data.loc[index, 'avg_trans_amount'] = trans_rows['trans_amount'].mean()
-    test_data.loc[index, 'range_amount'] = test_data.loc[index, 'max_trans_amount'] - test_data.loc[index, 'min_trans_amount']
     
-    test_data.loc[index, 'min_trans_balance'] = min(trans_rows['balance'])
-    test_data.loc[index, 'max_trans_balance'] = max(trans_rows['balance'])
-    test_data.loc[index, 'avg_trans_balance'] = trans_rows['balance'].mean()
-    test_data.loc[index, 'range_balance'] = test_data.loc[index, 'max_trans_balance'] - test_data.loc[index, 'min_trans_balance']
-    test_data.loc[index, 'withdrawals'] = len(trans_rows[trans_rows['trans_type'] == 'withdrawal']) + len(trans_rows[trans_rows['trans_type'] == 'withdrawal in cash'])
-    test_data.loc[index, 'credits'] = len(trans_rows[trans_rows['trans_type'] == 'credit'])
-    test_data.loc[index, 'members'] = len(trans_rows['type'].unique())
-    
-    max_date = max(trans_rows['trans_date'])
-    min_date = min(trans_rows['trans_date'])
+account_ids = list(test_data['account_id'].unique())
+trans_test_data = trans_test_data[trans_test_data['account_id'].isin(account_ids)]
 
-    if test_data.loc[index, 'trans_date'] == min_date:
-        test_data.loc[index, 'balance_last'] = test_data.loc[index, 'balance']
-        test_data.loc[index, 'amount_last'] = test_data.loc[index, 'trans_amount']
+for index, row in trans_test_data.iterrows():
+    rows = trans_test_data[trans_test_data['account_id'] == trans_test_data.loc[index, 'account_id']]
+    trans_test_data.loc[index, 'withdrawals'] = len(rows[rows['trans_type'] == 'withdrawal']) + len(rows[rows['trans_type'] == 'withdrawal in cash'])
+    trans_test_data.loc[index, 'credits'] = len(rows[rows['trans_type'] == 'credit'])
+    
+    trans_test_data.loc[index, 'nr_movements'] = len(rows)
+    sum_amount = sum(rows['trans_amount'])
+    max_date = max(rows['trans_date'])
+    min_date = min(rows['trans_date'])
+    
+    if trans_test_data.loc[index, 'trans_date'] == max_date:
+        trans_test_data.loc[index, 'balance_last'] = trans_test_data.loc[index, 'balance']
+        trans_test_data.loc[index, 'amount_last'] = trans_test_data.loc[index, 'trans_amount']
     
     max_year = max_date // 10000
     if max_year < 21:
@@ -152,26 +123,47 @@ for index, row in test_data.iterrows():
     min_month = (min_date % 10000) // 100
     min_day = min_date % 100
     
-    test_data.loc[index, 'trans_date_diff'] = days_between(str(max_year) + "-" + str(max_month) + "-" + str(max_day), str(min_year) + "-" + str(min_month) + "-" + str(min_day))
-    test_data.loc[index, 'amount_month'] = sum(trans_rows['trans_amount']) / ((test_data.loc[index, 'trans_date_diff']) / 30.0)
+    trans_test_data.loc[index, 'trans_date_diff'] = days_between(str(max_year) + "-" + str(max_month) + "-" + str(max_day), str(min_year) + "-" + str(min_month) + "-" + str(min_day))
+    trans_test_data.loc[index, 'amount_month'] = sum_amount / (trans_test_data.loc[index, 'trans_date_diff'] / 30.0)
+    
+    trans_test_data.loc[index, 'min_trans_amount'] = min(rows['trans_amount'])
+    trans_test_data.loc[index, 'max_trans_amount'] = max(rows['trans_amount'])
+    trans_test_data.loc[index, 'avg_trans_amount'] = rows['trans_amount'].mean()
+    trans_test_data.loc[index, 'range_amount'] = trans_test_data.loc[index, 'max_trans_amount'] - trans_test_data.loc[index, 'min_trans_amount']
+    
+    trans_test_data.loc[index, 'min_trans_balance'] = min(rows['balance'])
+    trans_test_data.loc[index, 'max_trans_balance'] = max(rows['balance'])
+    trans_test_data.loc[index, 'avg_trans_balance'] = rows['balance'].mean()
+    trans_test_data.loc[index, 'range_balance'] = trans_test_data.loc[index, 'max_trans_balance'] - trans_test_data.loc[index, 'min_trans_balance']    
+    
+trans_test_data = trans_test_data.drop(columns=['trans_type', 'operation', "k_symbol", "account", "bank"])
+trans_test_data = trans_test_data.dropna()
+trans_test_data = trans_test_data.drop_duplicates(subset=['account_id'], keep='first')
+test_data = test_data.merge(trans_test_data, on='account_id', how="left")
+test_data = test_data[test_data.std(axis=1) > 0]
+
+test_data['members'] = 0
+test_data['owner_age'] = 0
+test_data['able_to_pay'] = False
+
+for index, row in test_data.iterrows():
+    trans_rows = test_data[test_data['loan_id'] == test_data.loc[index,'loan_id']]
+    test_data.loc[index, 'members'] = len(trans_rows['type'].unique())
     
     if test_data.loc[index, 'amount_month'] > test_data.loc[index, 'payments']:
         test_data.loc[index, 'able_to_pay'] = True
         
     
-    
-
 test_data = test_data.sort_values('loan_id')
 
 test_data = test_data.drop(columns=["account_id", "client_id", "birth_number", "district_id", "disp_id",
-                                      "trans_id", "trans_date", "k_symbol", "account", "bank"])
+                                      "trans_id", "trans_date"])
 
 test_data = test_data[test_data['type'] == 'OWNER']
 
 test_data = test_data.drop_duplicates(subset=['loan_id'], keep='first')
 
-test_data = test_data.drop(columns=['trans_type', 'operation',
-                          'name ', 'region', 'type'])
+test_data = test_data.drop(columns=['name ', 'region', 'type'])
 
 test_data = pd.get_dummies(test_data, columns=['frequency'], dtype=bool)
 test_data = pd.get_dummies(test_data, columns=['gender'], dtype=bool)
